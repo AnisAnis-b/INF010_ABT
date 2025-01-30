@@ -39,7 +39,7 @@ Le script vous demandera plusieurs informations, par exemple :
 
 Nom du Resource Group: MonRG
 
-Région Azure (ex: westeurope, eastus, etc.) [westeurope]: 
+Région Azure (ex: westeurope, eastus, etc.) [westeurope]: (voir fichier region codes.txt)
 
 Nom du Virtual Network: MonVNet
 
@@ -53,7 +53,7 @@ Nom de l'Interface Réseau: MonNIC
 
 Nom de la Machine Virtuelle: MonVM
 
-Taille de la VM (ex: Standard_B1s, Standard_D2s_v3) [Standard_B1s]: Standard_D2s_v3
+Taille de la VM (ex: Standard_B1s, Standard_D2s_v3) [Standard_B1s]: Standard_D2s_v3   (voir fichier Taille Vm.txt)
 
 Nom de l'Utilisateur Admin: monuser
 
