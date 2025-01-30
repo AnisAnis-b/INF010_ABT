@@ -1,0 +1,151 @@
+- name: Déployer une VM Linux sur Azure (Interactif)
+  hosts: localhost
+  gather_facts: no
+
+  vars_prompt:
+    - name: resource_group
+      prompt: "Nom du Resource Group"
+      private: no
+
+    - name: location
+      prompt: "Région Azure (ex: westeurope, eastus, etc.)"
+      default: "westeurope"
+      private: no
+
+    - name: vnet_name
+      prompt: "Nom du Virtual Network"
+      private: no
+
+    - name: subnet_name
+      prompt: "Nom du Subnet"
+      private: no
+
+    - name: public_ip_name
+      prompt: "Nom de l'IP Publique"
+      private: no
+
+    - name: nsg_name
+      prompt: "Nom du Network Security Group (NSG)"
+      private: no
+
+    - name: nic_name
+      prompt: "Nom de l'Interface Réseau"
+      private: no
+
+    - name: vm_name
+      prompt: "Nom de la Machine Virtuelle"
+      private: no
+
+    - name: vm_size
+      prompt: "Taille de la VM (ex: Standard_B1s, Standard_D2s_v3)"
+      default: "Standard_B1s"
+      private: no
+
+    - name: admin_user
+      prompt: "Nom de l'Utilisateur Admin"
+      private: no
+
+    - name: admin_password
+      prompt: "Mot de passe Administrateur"
+      private: yes
+
+    - name: ssh_key_path
+      prompt: "Chemin de la clé SSH publique"
+      default: "~/.ssh/id_rsa.pub"
+      private: no
+
+  tasks:
+
+    - name: Etape 1/8 Créer un Resource Group
+      azure_rm_resourcegroup:
+        name: "{{ resource_group }}"
+        location: "{{ location }}"
+
+    - name: Etape 2/8 Créer un Virtual Network
+      azure_rm_virtualnetwork:
+        resource_group: "{{ resource_group }}"
+        name: "{{ vnet_name }}"
+        location: "{{ location }}"
+        address_prefixes: "10.0.0.0/16"
+
+    - name: Etape 3/8 Créer un Subnet
+      azure_rm_subnet:
+        resource_group: "{{ resource_group }}"
+        name: "{{ subnet_name }}"
+        virtual_network: "{{ vnet_name }}"
+        address_prefix: "10.0.1.0/24"
+
+    - name: Etape 4/8 Créer une IP publique
+      azure_rm_publicipaddress:
+        resource_group: "{{ resource_group }}"
+        name: "{{ public_ip_name }}"
+        location: "{{ location }}"
+        allocation_method: "Static"
+
+    - name: Etape 5/8 Créer un Network Security Group (NSG)
+      azure_rm_securitygroup:
+        resource_group: "{{ resource_group }}"
+        name: "{{ nsg_name }}"
+        location: "{{ location }}"
+        rules:
+          - name: AllowSSH
+            priority: 1001
+            direction: "Inbound"
+            access: "Allow"
+            protocol: "Tcp"
+            source_address_prefix: "*"
+            source_port_range: "*"
+            destination_address_prefix: "*"
+            destination_port_range: "22"
+
+    - name: Etape 6/8 Créer une interface réseau (NIC)
+      azure_rm_networkinterface:
+        resource_group: "{{ resource_group }}"
+        name: "{{ nic_name }}"
+        location: "{{ location }}"
+        security_group: "{{ nsg_name }}"
+        subnet_name: "{{ subnet_name }}"
+        virtual_network_name: "{{ vnet_name }}"
+        ip_configurations:
+          - name: "IPConfig1"
+            public_ip_address_name: "{{ public_ip_name }}"
+
+    - name: Etape 7/8 Créer une VM Linux
+      azure_rm_virtualmachine:
+        resource_group: "{{ resource_group }}"
+        name: "{{ vm_name }}"
+        location: "{{ location }}"
+        vm_size: "{{ vm_size }}"
+        admin_username: "{{ admin_user }}"
+        admin_password: "{{ admin_password }}"
+        ssh_password_enabled: true
+        ssh_public_keys:
+          - path: "/home/{{ admin_user }}/.ssh/authorized_keys"
+            key_data: "{{ lookup('file', ssh_key_path) }}"
+        network_interfaces: "{{ nic_name }}"
+        image:
+          offer: "UbuntuServer"
+          publisher: "Canonical"
+          sku: "18.04-LTS"
+          version: "latest"
+
+    - name: Etape 8/8 Récupérer l'adresse IP publique de la VM
+      azure_rm_publicipaddress_info:
+        resource_group: "{{ resource_group }}"
+        name: "{{ public_ip_name }}"
+      register: public_ip_info
+
+    - name: Debug - Afficher le contenu de public_ip_info
+      debug:
+        var: public_ip_info
+
+    - name: Afficher le résumé du déploiement
+      debug:
+        msg: |
+          ================================
+          Déploiement terminé avec succès !
+          ================================
+          Nom de la VM : {{ vm_name }}
+          Adresse IP publique : {{ public_ip_info.publicipaddresses[0].ip_address | default('Non disponible') }}
+          Connexion SSH : ssh {{ admin_user }}@{{ public_ip_info.publicipaddresses[0].ip_address | default('Non disponible') }}
+          ================================
